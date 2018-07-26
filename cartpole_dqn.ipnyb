@@ -1,0 +1,475 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Function Approximation for Q Learning\n",
+    "### 1. Cartpole\n",
+    "\n",
+    "A cartpole problem is shown below.\n",
+    "![pendulum2.png](pendulum2.png)\n",
+    "\n",
+    "The equation for the cartpole problem is nonlinear in nature, but it has been shown through robust control theory that a linear version of the equation of the form $\\dot{x} = Ax+Bu$ can be solved by a linear controller. Let us assume that we are interested in minimize cart stray from the center, and pendulum falling. It turns out that typical techniques - open loop control, PID control, root locus, etc. is not suitable for stabilizing both the cart position (keep near center) or the pole angle (keep vertical). The solution to this question is a linear quadratic controller, but we won't be using the solution at the moment."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Setup Environment for Function Approximation\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "Using TensorFlow backend.\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "array([ 0.03691926,  0.01017161, -0.01359483,  0.03557674])"
+      ]
+     },
+     "execution_count": 1,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "import gym\n",
+    "import numpy as np\n",
+    "from keras.models import Sequential\n",
+    "from keras.layers import Dense\n",
+    "from keras.optimizers import Adam\n",
+    "from collections import deque\n",
+    "import matplotlib.pyplot as plt\n",
+    "\n",
+    "# Create the Cart-Pole game environment\n",
+    "env = gym.make('CartPole-v0')\n",
+    "env.reset()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Demonstrate your understanding of the simulation\n",
+    "For OpenAI's CartPole-v0 environment,\n",
+    "- describe the reward system\n",
+    "- describe the each state variable (observation space)\n",
+    "- describe the action space"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Ans: \n",
+    "\n",
+    "Reward: 1 for every frame before a termination condition is met, in which case it is 0 (cart leaves area, arm falls beneath 20-something degrees)\n",
+    "\n",
+    "State Variable: position and speed of cart, angle and angular speed of arm\n",
+    "\n",
+    "Action Space: move left 1 unit, move right 1 unit"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Write a Deep Neural Network class that creates a dense network of a desired architecture\n",
+    "In this problem we will create neural network that is our function that takes states to q-values: $q=f(x)$. While any function approximator could be used (i.e. Chebyshev functions, taylor series polynomials), neural networks offer a most general form of 1st-order smooth function (though comprising of trivial small activation functions means that complex functions require a significant amount of weights to identify). \n",
+    "\n",
+    "Create a class for a QNetwork that uses Keras to create a fully connected sequential neural network, of the following properties:\n",
+    "- solver: Adams\n",
+    "\n",
+    "- input and hidden layer activation function: tanh\n",
+    "\n",
+    "- output activation function: linear\n",
+    "\n",
+    "- loss: mse\n",
+    "\n",
+    "- learning_rate: variable\n",
+    "\n",
+    "- decay_rate: variable\n",
+    "\n",
+    "- hidden_state sizes: variable\n",
+    "\n",
+    "- state and action sizes: variable\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "class QNetwork:\n",
+    "    def __init__(self, learning_rate, state_size, action_size, hidden_size, alpha_decay):\n",
+    "        # state inputs to the Q-network\n",
+    "        self.model = Sequential()\n",
+    "\n",
+    "        self.model.add(Dense(hidden_size[0], activation='tanh',input_dim=state_size))\n",
+    "        self.model.add(Dense(hidden_size[1], activation='tanh'))\n",
+    "        self.model.add(Dense(action_size, activation='linear'))\n",
+    "\n",
+    "        self.optimizer = Adam(lr=learning_rate,decay=alpha_decay)\n",
+    "        self.model.compile(loss='mse', optimizer=self.optimizer)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Write a Replay class that includes all the functionality of a replay buffer\n",
+    "The replay buffer should kept to some maximum size (1000), allow adding of samples and returning of samples at random from the buffer. The replay buffer should also be able to generate a minibatch. "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "class Replay():\n",
+    "    def __init__(self, max_size=1000):\n",
+    "        self.buffer = deque(maxlen=max_size) #max size for minibatching\n",
+    "        self.state_size = state_size\n",
+    "        self.action_size = action_size\n",
+    "        \n",
+    "    def add(self, experience):\n",
+    "        self.buffer.append(experience)\n",
+    "\n",
+    "    def sample(self, batch_size):\n",
+    "        idx = np.random.choice(np.arange(len(self.buffer)),size=batch_size, replace=False)\n",
+    "        return [self.buffer[ii] for ii in idx]\n",
+    "    \n",
+    "    def initialize(self, init_length, envir):\n",
+    "        ## generate buffer samples\n",
+    "        envir.reset()\n",
+    "        # Take one random step to get the pole and cart moving\n",
+    "        state, reward, done, _ = envir.step(envir.action_space.sample())\n",
+    "        state = np.reshape(state, [1, state.size])\n",
+    "        \n",
+    "        # Make a bunch of random actions and store the experiences\n",
+    "        for ii in range(init_length):\n",
+    "            # Make a random action\n",
+    "            action = envir.action_space.sample()\n",
+    "            next_state, reward, done, _ = envir.step(action)\n",
+    "            next_state = np.reshape(next_state, [1, state.size])\n",
+    "        \n",
+    "            replay.add((state, action, reward, next_state,done))\n",
+    "            if done:\n",
+    "                #restart\n",
+    "                envir.reset()\n",
+    "                state, reward, done, _ = envir.step(envir.action_space.sample())\n",
+    "                state = np.reshape(state, [1, state.size])\n",
+    "            else:\n",
+    "                state = next_state\n",
+    "    \n",
+    "    def generate_minibatch(self,DQN,targetDQN,batch_size):\n",
+    "        minibatch = replay.sample(batch_size)\n",
+    "        states = np.zeros((batch_size, self.state_size))\n",
+    "        qvalues = np.zeros((batch_size, self.action_size))\n",
+    "        i = 0\n",
+    "        for state, action, reward, next_state, done in minibatch:\n",
+    "            states[i,:] = state\n",
+    "            qvalues[i,:] = DQN.model.predict(state)[0] \n",
+    "            if(done):\n",
+    "                qvalues[i,action] = reward\n",
+    "            else:\n",
+    "                qvalues[i,action] = reward + gamma * np.amax(targetDQN.model.predict(next_state)[0])            \n",
+    "            i=i+1\n",
+    "        return states, qvalues"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Write a function that creates a minibatch from a buffer"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Perform Function Approximation\n",
+    "Initialize DQN networks and Replay Buffer objects"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "#%% Initialize DQN\n",
+    "learning_rate=0.01\n",
+    "state_size=env.observation_space.sample().size\n",
+    "action_size=env.action_space.n\n",
+    "hidden_size=np.array([24,48])\n",
+    "alpha_decay=0.01\n",
+    "DQN = QNetwork(learning_rate,state_size,action_size,hidden_size,alpha_decay)\n",
+    "targetDQN = QNetwork(learning_rate,state_size,action_size,hidden_size,alpha_decay)\n",
+    "\n",
+    "#set target weights to current weights\n",
+    "targetDQN.model.set_weights(DQN.model.get_weights())\n",
+    "\n",
+    "#%% Initialize Replay Buffer\n",
+    "###################################\n",
+    "## Populate the experience buffer\n",
+    "###################################\n",
+    "buffer_size = 10000\n",
+    "batch_size = 64\n",
+    "pretrain_length = 1000\n",
+    "replay = Replay(max_size=buffer_size)\n",
+    "replay.initialize(init_length=pretrain_length,envir=env)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Create a function that solves the above environment using a deep Q network that uses a minibatch strategy.\n",
+    "Use the following parameters (these had to be derived empirically - there is generally no trusted way of choosing the right parameter values - i.e. gamma, number of episodes, decay rate, min_epsilon). \n",
+    "\n",
+    "Generate a graph of the average return per episode every 100 episodes."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Episode 0 ..100   Avg reward: 22.27   Epsilon: 0.7810\n",
+      "Episode 100 ..200   Avg reward: 43.75   Epsilon: 0.6105\n",
+      "Episode 200 ..300   Avg reward: 100.68   Epsilon: 0.4776\n",
+      "Episode 300 ..400   Avg reward: 157.7   Epsilon: 0.3742\n",
+      "Episode 400 ..500   Avg reward: 182.58   Epsilon: 0.2936\n",
+      "Episode 500 ..600   Avg reward: 179.66   Epsilon: 0.2309\n",
+      "Episode 600 ..700   Avg reward: 193.21   Epsilon: 0.1820\n",
+      "Episode 700 ..800   Avg reward: 190.96   Epsilon: 0.1440\n",
+      "Episode 800 ..900   Avg reward: 193.08   Epsilon: 0.1143\n",
+      "Episode 900 ..1000   Avg reward: 192.51   Epsilon: 0.0913\n",
+      "Episode 1000 ..1100   Avg reward: 190.74   Epsilon: 0.0733\n",
+      "Episode 1100 ..1200   Avg reward: 197.89   Epsilon: 0.0593\n",
+      "Episode 1200 ..1300   Avg reward: 197.31   Epsilon: 0.0484\n",
+      "Episode 1300 ..1400   Avg reward: 197.78   Epsilon: 0.0399\n",
+      "Episode 1400 ..1500   Avg reward: 194.35   Epsilon: 0.0333\n",
+      "Episode 1500 ..1600   Avg reward: 196.89   Epsilon: 0.0281\n",
+      "Episode 1600 ..1700   Avg reward: 196.49   Epsilon: 0.0241\n",
+      "Episode 1700 ..1800   Avg reward: 198.51   Epsilon: 0.0210\n",
+      "Episode 1800 ..1900   Avg reward: 197.37   Epsilon: 0.0186\n",
+      "Episode 1899 ..1999   Avg reward: 198.12   Epsilon: 0.0167\n"
+     ]
+    }
+   ],
+   "source": [
+    "#runtime parameters\n",
+    "num_episodes = 2000            # max number of episodes to learn from\n",
+    "gamma = 0.99                   # future reward discount\n",
+    "max_steps = 500                # cut off simulation after this many steps\n",
+    "\n",
+    "# Exploration parameters\n",
+    "min_epsilon = 0.01            # minimum exploration probability\n",
+    "decay_rate = 5/num_episodes    # exponential decay rate for exploration prob\n",
+    "\n",
+    "step = 0\n",
+    "returns = np.zeros(num_episodes)\n",
+    "for ep in range(1, num_episodes):\n",
+    "    # Start new episode\n",
+    "    env.reset()\n",
+    "    # Take one random step to get the pole and cart moving\n",
+    "    state, reward, done, _ = env.step(env.action_space.sample())\n",
+    "    state = np.reshape(state, [1, state.size])\n",
+    "    total_reward = 0\n",
+    "    step = 0\n",
+    "    while(step < max_steps):\n",
+    "        step = step + 1\n",
+    "        # Explore or Exploit\n",
+    "        epsilon = min_epsilon + (1.0 - min_epsilon)*np.exp(-decay_rate*ep)\n",
+    "        if epsilon > np.random.rand():\n",
+    "            # Make a random action\n",
+    "            action = env.action_space.sample()\n",
+    "        else:\n",
+    "            # Get action from Q-network\n",
+    "            Qs = DQN.model.predict(state)[0]\n",
+    "            action = np.argmax(Qs)\n",
+    "\n",
+    "        # Take action, get new state and reward\n",
+    "        next_state, reward, done, _ = env.step(action)\n",
+    "        next_state = np.reshape(next_state, [1, state.size])\n",
+    "        total_reward += reward\n",
+    "\n",
+    "        #add to replay buffer\n",
+    "        replay.add((state, action, reward, next_state,done))\n",
+    "\n",
+    "        #check end of episode\n",
+    "        if done:\n",
+    "            break\n",
+    "        else:\n",
+    "            state = next_state\n",
+    "\n",
+    "    #Progress updates\n",
+    "    returns[ep]=total_reward\n",
+    "    if ep%100 == 0 or ep==num_episodes-1: #print out gradual improvement\n",
+    "        print('Episode {}'.format(ep-100),'..{}'.format(ep),'  Avg reward: {}'.format(sum(returns[ep-100:ep])/100),'  Epsilon: {:.4f}'.format(epsilon))\n",
+    "        \n",
+    "    # Replay\n",
+    "    states,qvalues = replay.generate_minibatch(DQN,targetDQN,batch_size)\n",
+    "    #states,qvalues = replay.generate_minibatch_doubleDQN_PriorityReplay(DQN,targetDQN,batch_size)\n",
+    "    if ep%1 == 0: targetDQN.model.set_weights(DQN.model.get_weights())\n",
+    "\n",
+    "    #update the DQN \n",
+    "    DQN.model.fit(states, qvalues, epochs=1, verbose=0)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<matplotlib.figure.Figure at 0x197fb9e4080>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "#%% plot average returns\n",
+    "returns_over_100_episodes = []\n",
+    "x = []\n",
+    "for i in range(0,int(num_episodes/100)):\n",
+    "    returns_over_100_episodes.append(sum(returns[100*i:100*(i+1)-1])/100)\n",
+    "    x.append((i+1)*100)\n",
+    "plt.plot(x,returns_over_100_episodes,'.-r')\n",
+    "plt.ylabel('Average Returns per Episode')\n",
+    "plt.xlabel('Num of Episodes')\n",
+    "plt.show()\n",
+    "    "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "#%% DEMO FINAL NETWORK\n",
+    "env.reset()\n",
+    "# Take one random step to get the pole and cart moving\n",
+    "state, reward, done, _ = env.step(env.action_space.sample())\n",
+    "state = np.reshape(state, [1, state.size])\n",
+    "total_reward = 0\n",
+    "for i in range(0,max_steps):\n",
+    "    env.render()\n",
+    "    # Get action from Q-network\n",
+    "    Qs = DQN.model.predict(state)[0]\n",
+    "    action = np.argmax(Qs)\n",
+    "\n",
+    "    # Take action, get new state and reward\n",
+    "    next_state, reward, done, _ = env.step(action)\n",
+    "    total_reward += reward\n",
+    "\n",
+    "    if done:\n",
+    "        break\n",
+    "    else:\n",
+    "        state = state = np.reshape(next_state, [1, state.size])\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Bonus 1\n",
+    "Show the above DQN code, with the right parameters, can solve the 'MountainCarContinuousV0' environment"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Bonus 2\n",
+    "Finally, to get faster convergence, prioritized experience replay is used. Provide a modified minibatch update strategy that incorporates prioritized experience replay. You may choose to implement the replay strategy however you wish. Describe the strategy below.\n",
+    "\n",
+    "Show the trend above and demonstrate how prioritizing experience helps the network converge, on average, faster than without prioritization."
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.6.2"
+  },
+  "varInspector": {
+   "cols": {
+    "lenName": 16,
+    "lenType": 16,
+    "lenVar": 40
+   },
+   "kernels_config": {
+    "python": {
+     "delete_cmd_postfix": "",
+     "delete_cmd_prefix": "del ",
+     "library": "var_list.py",
+     "varRefreshCmd": "print(var_dic_list())"
+    },
+    "r": {
+     "delete_cmd_postfix": ") ",
+     "delete_cmd_prefix": "rm(",
+     "library": "var_list.r",
+     "varRefreshCmd": "cat(var_dic_list()) "
+    }
+   },
+   "types_to_exclude": [
+    "module",
+    "function",
+    "builtin_function_or_method",
+    "instance",
+    "_Feature"
+   ],
+   "window_display": false
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
