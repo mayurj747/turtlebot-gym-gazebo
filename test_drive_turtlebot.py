@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as anim
+import sys
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"   # comment this and the following line to use GPUs (if available)
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
@@ -18,7 +19,9 @@ def update_line(hl, state):
     hl.set_ydata(np.append(hl.get_ydata(), state[0, 1]))
     fig.canvas.draw()
 
-trainedDQN = load_model('./models/turtlebot_dqn_test_1.h5')
+
+model_name = sys.argv[1]
+trainedDQN = load_model('./models/' + str(model_name) + '.h5')
 
 MAX_PATH_LENGTH = 5000
 env = gym.make('GazeboEmptyTurtlebotLidarNn-v0')
