@@ -35,3 +35,6 @@ Copy run_demo.bash somewhere, make sure it is executable.
 `bash run_demo.bash`
 
 You're now inside the container. 
+
+
+### TODO: Installation notes are unfinished: docker container is being rebuilt.
