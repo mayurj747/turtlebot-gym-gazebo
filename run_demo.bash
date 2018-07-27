@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+# Runs a docker container with the image created by build_demo.bash
+# Requires
+#   docker
+#   nvidia-docker2
+#   an X server
+# Recommended
+#   A joystick mounted to /dev/input/js0 or /dev/input/js1
+
+
+# Make sure processes in the container can connect to the x server
+# Necessary so gazebo can create a context for OpenGL rendering (even headless)
+# XAUTH=/tmp/.docker.xauth
+# if [ ! -f $XAUTH ]
+# then
+#     xauth_list=$(xauth nlist :0 | sed -e 's/^..../ffff/')
+#     if [ ! -z "$xauth_list" ]
+#     then
+#         echo $xauth_list | xauth -f $XAUTH nmerge -
+#     else
+#         touch $XAUTH
+#     fi
+#     chmod a+r $XAUTH
+# fi
+
+xhost +
+
+docker run -it --rm \
+  --runtime=nvidia \
+  --env DISPLAY \
+  --env QT_X11_NO_MITSHM=1 \
+  --volume "/tmp/.X11-unix:/tmp/.X11-unix" \
+  --volume "/etc/localtime:/etc/localtime:ro" \
+  --volume "/dev/input:/dev/input" \
+  --privileged \
+  -p 8888:8888\
+  mayurj747/tensorflow-gym-gazebo:v2 bash
