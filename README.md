@@ -1,7 +1,8 @@
 # turtlebot-gym-gazebo
 Training a Turtlebot to move around in circles using ROS + Gazebo and OpenAI Gym.
 
-Paper: report-turtlebot-circles.pdf
+[Report.](report-turtlebot-circles.pdf)
+
 
 ## Installation 
 Requirements:
