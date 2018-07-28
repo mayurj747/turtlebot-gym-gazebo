@@ -33,7 +33,7 @@ fig = plt.figure()
 ax = fig.add_subplot(111)
 hl, = ax.plot([], [], 'k.', markersize=1)
 
-xmin, xmax, ymin, ymax = env.env.get_env_constraints(var='state_space')
+xmin, xmax, ymin, ymax = env.env.get_env_constraints(flag='state_space')
 plt.xlim(xmin, xmax)
 plt.ylim(ymin, ymax)
 plt.xlabel('X')
