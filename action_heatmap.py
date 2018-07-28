@@ -40,7 +40,7 @@ def main(env, model):
     state_samples = create_grid(env)
     qvalues = model.predict(state_samples)
     action = np.argmax(qvalues, axis=1)
-    ang_vel = env.env.env.calculate_ang_vel(action)
+    ang_vel = env.env.calculate_ang_vel(action)
     data = np.array([state_samples[:, 0], state_samples[:, 1], ang_vel]).T
     ax = generate_heatmap(data)
     return ax
