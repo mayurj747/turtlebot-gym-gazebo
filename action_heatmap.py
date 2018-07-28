@@ -9,7 +9,7 @@ import gym_gazebo
 from keras.models import load_model
 
 def create_grid(env):
-    xmin, xmax, ymin, ymax = env.env.env.get_env_constraints(var='state_space')
+    xmin, xmax, ymin, ymax = env.env.get_env_constraints(flag='state_space')
     X, Y = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
     positions = np.vstack([X.ravel(), Y.ravel()]).T
     return np.around(positions, 2)
