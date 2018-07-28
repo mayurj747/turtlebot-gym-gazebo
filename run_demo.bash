@@ -26,7 +26,7 @@
 
 xhost +
 
-docker run -it --rm \
+docker run -it \
   --runtime=nvidia \
   --env DISPLAY \
   --env QT_X11_NO_MITSHM=1 \
@@ -35,4 +35,4 @@ docker run -it --rm \
   --volume "/dev/input:/dev/input" \
   --privileged \
   -p 8888:8888\
-  mayurj747/tensorflow-gym-gazebo:v2 bash
+  mayurj747/tensorflow-gym-gazebo:final bash
