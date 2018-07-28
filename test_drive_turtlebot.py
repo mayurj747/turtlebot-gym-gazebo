@@ -57,8 +57,8 @@ for episode in range(10):
         next_state, reward, done, _ = env.step(action)
 
         state = np.reshape(next_state, [1, state.size])
-        if done and episode == 9:
+        if done:
             state = env.env.soft_reset()
             state = np.reshape(state, [1, state.size])
-            fig.savefig('turtlebot_trained_trajectory.png')
+
             break
