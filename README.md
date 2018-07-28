@@ -17,7 +17,7 @@ You're now inside the container.
 
 Navigate to `~/gym-gazebo/gym_gazebo/envs/installation`, then execute the following:
 * `bash setup_kinetic.bash` (might take a few minutes to finish compiling)
-* `bash turtlebot_nn_steup.bash`
+* `bash turtlebot_nn_setup.bash`
 
 You should now be ready to execute any script! 
 
@@ -25,7 +25,7 @@ To bring up Gazebo and visualize the robot, in a separate (host) terminal, run:
 
 `docker exec -it --env DISPLAY --env QT_X11_NO_MITSHM=1 --privileged CONTAINER_ID bash`
 
-CONTAINER_ID can be obtained by running `docker ps`.+
+CONTAINER_ID can be obtained by running `docker ps`.
 
 ## Summary
 Main script to check out:
