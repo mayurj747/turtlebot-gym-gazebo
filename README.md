@@ -24,11 +24,14 @@ You should now be ready to execute any script!
 
 To bring up Gazebo and visualize the robot, in a separate (host) terminal, run:
 
-`docker exec -it --env DISPLAY --env QT_X11_NO_MITSHM=1 --privileged CONTAINER_ID bash`
+* `docker exec -it --env DISPLAY --env QT_X11_NO_MITSHM=1 --privileged CONTAINER_ID bash`
 
-CONTAINER_ID can be obtained by running `docker ps`.
+   CONTAINER_ID can be obtained by running `docker ps`.
+* After logging into the container, run `gzclient`.
 
 ## Summary
+ 
+
 Main script to check out:
 * `turtlebot_circle_dqn_clean.ipynb` 
 
@@ -45,7 +48,7 @@ Main script to check out:
     
     `python test_drive turtlebot.py turtlebot_dqn_2`
     
-    turtlebot_dqn_2 loads weights of the DQN trained for "Exploration without Directed Bias" (refer report) . Replace with turtlebot_dqn_1 for "Exploration with Directed Bias".
+    turtlebot_dqn_2 loads weights of the DQN trained for "Exploration without Directed Bias" (refer report). Replace with turtlebot_dqn_1 for "Exploration with Directed Bias". Run `gzclient` in a separate terminal to view the robot moving in circles.
     
  Weight files are located `./models`.
  
