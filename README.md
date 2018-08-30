@@ -10,7 +10,7 @@ Requirements:
 * install nvidia-docker2 (`sudo apt-get install nvidia-docker2`)
 
 
-Copy run_demo.bash somewhere, make sure it is executable (`chmod +x run_dem0.bash`).
+Copy run_demo.bash somewhere, make sure it is executable (`chmod +x run_demo.bash`).
 
 `bash run_demo.bash`
 
